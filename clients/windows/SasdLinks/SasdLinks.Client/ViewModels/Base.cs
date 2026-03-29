@@ -20,9 +20,6 @@ public abstract class ViewModelBase : INotifyPropertyChanged
     }
 }
 
-/// <summary>
-/// Minimaler ICommand für MVVM.
-/// </summary>
 public sealed class RelayCommand : ICommand
 {
     private readonly Action _execute;

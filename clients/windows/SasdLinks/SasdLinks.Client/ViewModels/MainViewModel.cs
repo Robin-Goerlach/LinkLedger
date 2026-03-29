@@ -1,21 +1,15 @@
 using System.Collections.ObjectModel;
+using System.Text;
+using System.Windows;
 using System.Windows.Data;
+using Microsoft.Win32;
+using SasdLinks.Client.Services;
 using SasdLinks.Core.Models;
 using SasdLinks.Core.Services;
 using SasdLinks.Core.Validation;
 
 namespace SasdLinks.Client.ViewModels;
 
-/// <summary>
-/// MainViewModel steuert die komplette 3-Pane UI (Wunderlist-Feeling):
-/// - Links: Projects
-/// - Mitte: Links im ausgewählten Projekt + Suche/Filter
-/// - Rechts: Detail der ausgewählten URL + Tags bearbeiten (Dropdown)
-///
-/// Datenhaltung:
-/// - Snapshot lokal (JSON)
-/// - Jede lokale Änderung erzeugt PendingOps (für späteren Sync)
-/// </summary>
 public sealed class MainViewModel : ViewModelBase
 {
     private readonly ILocalStore _store;
@@ -27,7 +21,6 @@ public sealed class MainViewModel : ViewModelBase
     public ObservableCollection<Project> Projects { get; } = new();
     public ObservableCollection<LinkItem> Links { get; } = new();
     public ObservableCollection<Tag> Tags { get; } = new();
-
     public ICollectionView LinksView { get; }
 
     private Project? _selectedProject;
@@ -37,9 +30,7 @@ public sealed class MainViewModel : ViewModelBase
         set
         {
             if (Set(ref _selectedProject, value))
-            {
                 RefreshLinks();
-            }
         }
     }
 
@@ -51,7 +42,8 @@ public sealed class MainViewModel : ViewModelBase
         {
             if (Set(ref _selectedLink, value))
             {
-                OnPropertyChanged(nameof(SelectedLinkTags));
+                LoadSelectedLinkToEditor();
+                UpdateSelectedLinkTags();
             }
         }
     }
@@ -62,53 +54,28 @@ public sealed class MainViewModel : ViewModelBase
     public string SearchQuery
     {
         get => _searchQuery;
-        set
-        {
-            if (Set(ref _searchQuery, value))
-                LinksView.Refresh();
-        }
+        set { if (Set(ref _searchQuery, value)) LinksView.Refresh(); }
     }
 
     private Tag? _filterTag;
     public Tag? FilterTag
     {
         get => _filterTag;
-        set
-        {
-            if (Set(ref _filterTag, value))
-                LinksView.Refresh();
-        }
+        set { if (Set(ref _filterTag, value)) LinksView.Refresh(); }
     }
 
     private string _status = "Ready";
-    public string Status
-    {
-        get => _status;
-        set => Set(ref _status, value);
-    }
+    public string Status { get => _status; set => Set(ref _status, value); }
 
     private string _newProjectName = "";
-    public string NewProjectName
-    {
-        get => _newProjectName;
-        set => Set(ref _newProjectName, value);
-    }
+    public string NewProjectName { get => _newProjectName; set => Set(ref _newProjectName, value); }
 
     private string _newTagName = "";
-    public string NewTagName
-    {
-        get => _newTagName;
-        set => Set(ref _newTagName, value);
-    }
+    public string NewTagName { get => _newTagName; set => Set(ref _newTagName, value); }
 
     private Tag? _tagToAdd;
-    public Tag? TagToAdd
-    {
-        get => _tagToAdd;
-        set => Set(ref _tagToAdd, value);
-    }
+    public Tag? TagToAdd { get => _tagToAdd; set { if (Set(ref _tagToAdd, value)) AssignTagCommand.RaiseCanExecuteChanged(); } }
 
-    // Detail-Editor Felder (rechts)
     private string _editUrl = "";
     public string EditUrl { get => _editUrl; set => Set(ref _editUrl, value); }
 
@@ -121,14 +88,27 @@ public sealed class MainViewModel : ViewModelBase
     // Commands
     public RelayCommand AddProjectCommand { get; }
     public RelayCommand DeleteProjectCommand { get; }
+
     public RelayCommand AddTagCommand { get; }
     public RelayCommand DeleteTagCommand { get; }
+
     public RelayCommand AddLinkCommand { get; }
     public RelayCommand DeleteLinkCommand { get; }
     public RelayCommand SaveLinkCommand { get; }
+
     public RelayCommand AssignTagCommand { get; }
     public RelayCommand<Tag> RemoveTagCommand { get; }
+
     public RelayCommand SyncCommand { get; }
+
+    // Menu/Ribbon: Export/Import/Reset/About
+    public RelayCommand ExportJsonCommand { get; }
+    public RelayCommand ExportCsvCommand { get; }
+    public RelayCommand ImportCommand { get; }   // Placeholder
+    public RelayCommand ClearSearchCommand { get; }
+    public RelayCommand ResetFilterCommand { get; }
+    public RelayCommand AboutCommand { get; }
+    public RelayCommand ExitCommand { get; }
 
     public MainViewModel(ILocalStore store, ISyncService sync)
     {
@@ -153,7 +133,17 @@ public sealed class MainViewModel : ViewModelBase
 
         SyncCommand = new RelayCommand(async () => await SyncNowAsync());
 
-        // Initial laden
+        ExportJsonCommand = new RelayCommand(ExportJson);
+        ExportCsvCommand = new RelayCommand(ExportCsv);
+        ImportCommand = new RelayCommand(() => Status = "Import ist als nächster Schritt vorgesehen (noch nicht implementiert).");
+        ClearSearchCommand = new RelayCommand(() => { SearchQuery = ""; Status = "Suche geleert."; });
+        ResetFilterCommand = new RelayCommand(() => { FilterTag = null; Status = "Filter zurückgesetzt."; });
+        AboutCommand = new RelayCommand(() =>
+        {
+            MessageBox.Show("SASD Links – Demo Client\nWPF / VS 2022\nOffline-First + Sync vorbereitet", "Über");
+        });
+        ExitCommand = new RelayCommand(() => Application.Current.Shutdown());
+
         _ = LoadAsync();
     }
 
@@ -193,23 +183,19 @@ public sealed class MainViewModel : ViewModelBase
             Links.Add(l);
 
         SelectedLink = Links.FirstOrDefault();
-        LoadSelectedLinkToEditor();
-        UpdateSelectedLinkTags();
-        LinksView.Refresh();
 
         DeleteProjectCommand.RaiseCanExecuteChanged();
         AddLinkCommand.RaiseCanExecuteChanged();
+        LinksView.Refresh();
     }
 
     private bool FilterLinks(object obj)
     {
         if (obj is not LinkItem l) return false;
 
-        // Tag Filter
         if (FilterTag != null && !l.TagIds.Contains(FilterTag.Id))
             return false;
 
-        // Textsuche (sehr simpel, aber effektiv)
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             var q = SearchQuery.Trim().ToLowerInvariant();
@@ -246,7 +232,6 @@ public sealed class MainViewModel : ViewModelBase
             return;
         }
 
-        // Duplicate-Projektname im Client verhindern (wie UNIQUE in DB)
         if (_snapshot.Projects.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
         {
             Status = "Projektname existiert bereits.";
@@ -268,10 +253,8 @@ public sealed class MainViewModel : ViewModelBase
     private async void DeleteSelectedProject()
     {
         if (SelectedProject == null) return;
-
         var pid = SelectedProject.Id;
 
-        // Entferne Projekt + zugehörige Links (wie ON DELETE CASCADE)
         _snapshot.Projects.RemoveAll(p => p.Id == pid);
         _snapshot.Links.RemoveAll(l => l.ProjectId == pid);
 
@@ -287,11 +270,7 @@ public sealed class MainViewModel : ViewModelBase
     private async void AddTag()
     {
         var name = (NewTagName ?? "").Trim();
-        if (name.Length == 0)
-        {
-            Status = "Tag-Name fehlt.";
-            return;
-        }
+        if (name.Length == 0) { Status = "Tag-Name fehlt."; return; }
 
         if (_snapshot.Tags.Any(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
         {
@@ -312,12 +291,7 @@ public sealed class MainViewModel : ViewModelBase
 
     private async void DeleteSelectedTag()
     {
-        // Für Demo wählen wir den zu löschenden Tag über FilterTag (spartanisch, aber verständlich).
-        if (FilterTag == null)
-        {
-            Status = "Wähle zum Löschen einen Tag im Filter-Dropdown.";
-            return;
-        }
+        if (FilterTag == null) { Status = "Zum Löschen Tag im Filter auswählen."; return; }
 
         var tid = FilterTag.Id;
 
@@ -340,19 +314,13 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (SelectedProject == null) return;
 
-        // Bei AddLink nehmen wir die URL aus dem rechten Editor-Feld "EditUrl"
         var raw = (EditUrl ?? "").Trim();
         var (ok, normalized, err) = UrlTools.Validate(raw);
-        if (!ok)
-        {
-            Status = "Ungültige URL: " + err;
-            return;
-        }
+        if (!ok) { Status = "Ungültige URL: " + err; return; }
 
         var canonical = UrlTools.Canonicalize(normalized);
         var hash = UrlTools.Sha256Hex(canonical);
 
-        // Duplicate pro Projekt verhindern
         if (_snapshot.Links.Any(l => l.ProjectId == SelectedProject.Id && l.CanonicalHash == hash))
         {
             Status = "Warnung: URL existiert in diesem Projekt bereits.";
@@ -370,7 +338,7 @@ public sealed class MainViewModel : ViewModelBase
         };
 
         _snapshot.Links.Add(link);
-        Links.Insert(0, link); // neu oben
+        Links.Insert(0, link);
         SelectedLink = link;
 
         AddPending("link", PendingOpType.Upsert, link.Id);
@@ -401,24 +369,15 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (SelectedLink == null) return;
 
-        // URL validieren
         var (ok, normalized, err) = UrlTools.Validate(EditUrl ?? "");
-        if (!ok)
-        {
-            Status = "Ungültige URL: " + err;
-            return;
-        }
+        if (!ok) { Status = "Ungültige URL: " + err; return; }
 
         var canonical = UrlTools.Canonicalize(normalized);
         var hash = UrlTools.Sha256Hex(canonical);
 
-        // Duplicate check (außer sich selbst)
-        if (_snapshot.Links.Any(l =>
-            l.ProjectId == SelectedLink.ProjectId &&
-            l.Id != SelectedLink.Id &&
-            l.CanonicalHash == hash))
+        if (_snapshot.Links.Any(l => l.ProjectId == SelectedLink.ProjectId && l.Id != SelectedLink.Id && l.CanonicalHash == hash))
         {
-            Status = "Warnung: Diese Änderung würde ein Duplikat erzeugen.";
+            Status = "Warnung: Änderung würde ein Duplikat erzeugen.";
             return;
         }
 
@@ -428,10 +387,6 @@ public sealed class MainViewModel : ViewModelBase
         SelectedLink.Title = string.IsNullOrWhiteSpace(EditTitle) ? null : EditTitle.Trim();
         SelectedLink.Description = string.IsNullOrWhiteSpace(EditDescription) ? null : EditDescription.Trim();
         SelectedLink.UpdatedAtUtc = DateTime.UtcNow;
-
-        // auch Snapshot enthält dasselbe Objekt (wir verwenden Referenzen), aber zur Klarheit:
-        var idx = _snapshot.Links.FindIndex(l => l.Id == SelectedLink.Id);
-        if (idx >= 0) _snapshot.Links[idx] = SelectedLink;
 
         AddPending("link", PendingOpType.Upsert, SelectedLink.Id);
         await PersistAsync();
@@ -445,9 +400,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (SelectedLink == null)
         {
-            EditUrl = "";
-            EditTitle = "";
-            EditDescription = "";
+            EditUrl = ""; EditTitle = ""; EditDescription = "";
             return;
         }
 
@@ -480,6 +433,7 @@ public sealed class MainViewModel : ViewModelBase
         {
             SelectedLink.TagIds.Add(TagToAdd.Id);
             SelectedLink.UpdatedAtUtc = DateTime.UtcNow;
+
             AddPending("link", PendingOpType.Upsert, SelectedLink.Id);
             await PersistAsync();
 
@@ -509,15 +463,42 @@ public sealed class MainViewModel : ViewModelBase
         Status = "Synchronisiere...";
         var res = await _sync.SyncAsync();
         Status = res.Ok ? res.Message : ("Fehler: " + res.Message);
-
-        // Nach dem Sync neu laden (Server könnte abweichen)
         await LoadAsync();
     }
 
-    // Wenn ein Link ausgewählt wird, sollen die Editor-Felder aktualisiert werden.
-    public void OnSelectedLinkChanged()
+    private void ExportJson()
     {
-        LoadSelectedLinkToEditor();
-        UpdateSelectedLinkTags();
+        var dlg = new SaveFileDialog
+        {
+            Title = "Export (JSON)",
+            Filter = "JSON Dateien (*.json)|*.json|Alle Dateien (*.*)|*.*",
+            FileName = $"sasdlinks_export_{DateTime.UtcNow:yyyy-MM-dd}.json"
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        var json = Exporters.ToJson(_snapshot);
+        File.WriteAllText(dlg.FileName, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        Status = "Export (JSON) geschrieben: " + dlg.FileName;
+    }
+
+    private void ExportCsv()
+    {
+        var dlg = new SaveFileDialog
+        {
+            Title = "Export (CSV)",
+            Filter = "CSV Dateien (*.csv)|*.csv|Alle Dateien (*.*)|*.*",
+            FileName = SelectedProject != null
+                ? $"links_{SelectedProject.Name}_{DateTime.UtcNow:yyyy-MM-dd}.csv"
+                : $"links_{DateTime.UtcNow:yyyy-MM-dd}.csv"
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        var csv = Exporters.LinksToCsv(_snapshot, SelectedProject?.Id);
+
+        // Mit BOM, damit Excel UTF-8 sauber erkennt
+        File.WriteAllText(dlg.FileName, csv, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        Status = "Export (CSV) geschrieben: " + dlg.FileName;
     }
 }

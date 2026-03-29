@@ -1,0 +1,12 @@
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\bin\Debug\net8.0\SasdLinks.Core.deps.json
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\bin\Debug\net8.0\SasdLinks.Core.dll
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\bin\Debug\net8.0\SasdLinks.Core.pdb
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\obj\Debug\net8.0\SasdLinks.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\obj\Debug\net8.0\SasdLinks.Core.AssemblyInfoInputs.cache
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\obj\Debug\net8.0\SasdLinks.Core.AssemblyInfo.cs
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\obj\Debug\net8.0\SasdLinks.Core.csproj.CoreCompileInputs.cache
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\obj\Debug\net8.0\SasdLinks.Core.sourcelink.json
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\obj\Debug\net8.0\SasdLinks.Core.dll
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\obj\Debug\net8.0\refint\SasdLinks.Core.dll
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\obj\Debug\net8.0\SasdLinks.Core.pdb
+C:\Data\Users\Documents\Source\repositories\SASD\NT\LinkLedger\clients\windows\SasdLinks\SasdLinks.Core\obj\Debug\net8.0\ref\SasdLinks.Core.dll

@@ -4,12 +4,6 @@ using SasdLinks.Core.Services;
 
 namespace SasdLinks.Client.Services;
 
-/// <summary>
-/// Mock API Client:
-/// - simuliert einen Server durch eine separate JSON-Datei remote.json
-/// - Sync zeigt dir schon jetzt, wie sich Upload/Download anfühlt
-/// - später ersetzt du MockApiClient durch HttpApiClient (REST)
-/// </summary>
 public sealed class MockApiClient : IApiClient
 {
     private readonly string _remoteFile;
@@ -39,13 +33,6 @@ public sealed class MockApiClient : IApiClient
 
     public async Task UploadOpsAsync(IEnumerable<PendingOp> ops, Snapshot localSnapshot, CancellationToken ct = default)
     {
-        // Simpler Ansatz: wir “übernehmen” den gesamten lokalen Snapshot auf den Server
-        // nachdem wir Ops erhalten haben.
-        //
-        // Vorteil: sehr leicht zu verstehen.
-        // Nachteil: nicht effizient.
-        //
-        // Später: hier echte REST Calls (POST/PUT/DELETE) gegen die PHP-API.
         var snap = localSnapshot;
         snap.GeneratedAtUtc = DateTime.UtcNow;
 

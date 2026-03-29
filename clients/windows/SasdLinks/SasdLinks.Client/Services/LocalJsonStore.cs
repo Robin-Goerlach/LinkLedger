@@ -1,17 +1,10 @@
+using System.Text;
 using System.Text.Json;
 using SasdLinks.Core.Models;
 using SasdLinks.Core.Services;
 
 namespace SasdLinks.Client.Services;
 
-/// <summary>
-/// Lokaler Store als JSON-Dateien unter %LOCALAPPDATA%\SasdLinksClient\
-/// - data.json: Snapshot (Projects/Links/Tags)
-/// - pending.json: PendingOps (für spätere Synchronisation)
-///
-/// Vorteil: extrem einfach, gut nachvollziehbar, kein DB-Setup nötig.
-/// Nachteil: nicht so performant/robust wie SQLite – aber für einen Demo-Client perfekt.
-/// </summary>
 public sealed class LocalJsonStore : ILocalStore
 {
     private readonly string _folder;
@@ -48,8 +41,20 @@ public sealed class LocalJsonStore : ILocalStore
     public async Task SaveAsync(Snapshot snapshot, CancellationToken ct = default)
     {
         snapshot.GeneratedAtUtc = DateTime.UtcNow;
+
+        // Atomic write: erst in tmp schreiben, dann replace.
+        var tmp = _dataFile + ".tmp";
+        var backup = _dataFile + ".bak";
+
         var json = JsonSerializer.Serialize(snapshot, JsonOptions);
-        await File.WriteAllTextAsync(_dataFile, json, ct);
+        await File.WriteAllTextAsync(tmp, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), ct);
+
+        if (File.Exists(_dataFile))
+            File.Copy(_dataFile, backup, overwrite: true);
+
+        // Replace ist auf Windows atomischer als Copy+Delete
+        File.Copy(tmp, _dataFile, overwrite: true);
+        File.Delete(tmp);
     }
 
     public async Task<List<PendingOp>> LoadPendingOpsAsync(CancellationToken ct = default)
@@ -70,12 +75,12 @@ public sealed class LocalJsonStore : ILocalStore
 
     private static Snapshot SeedEmpty()
     {
-        // Mini-Seed, damit die App nicht “leer und traurig” wirkt.
         var p = new Project { Name = "Inbox", Description = "Standard-Projekt (Demo)" };
         var t = new Tag { Name = "sample" };
 
         return new Snapshot
         {
+            SchemaVersion = 1,
             Projects = new() { p },
             Tags = new() { t },
             Links = new()

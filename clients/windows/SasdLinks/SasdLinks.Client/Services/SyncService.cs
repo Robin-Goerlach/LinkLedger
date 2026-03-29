@@ -3,18 +3,6 @@ using SasdLinks.Core.Services;
 
 namespace SasdLinks.Client.Services;
 
-/// <summary>
-/// SyncService:
-/// - lädt PendingOps + Snapshot lokal
-/// - uploadet ops (hier: mock nimmt snapshot als 'server state')
-/// - lädt snapshot vom 'server'
-/// - überschreibt lokal
-///
-/// Später (wenn die PHP-API fertig ist):
-/// - upload ops einzeln
-/// - conflict handling (timestamps / revision numbers)
-/// - delta sync
-/// </summary>
 public sealed class SyncService : ISyncService
 {
     private readonly ILocalStore _local;
@@ -37,6 +25,7 @@ public sealed class SyncService : ISyncService
             var serverSnap = await _api.DownloadSnapshotAsync(ct);
 
             await _local.SaveAsync(serverSnap, ct);
+            var uploaded = pending.Count;
             pending.Clear();
             await _local.SavePendingOpsAsync(pending, ct);
 
@@ -44,7 +33,7 @@ public sealed class SyncService : ISyncService
             {
                 Ok = true,
                 Message = "Synchronisation erfolgreich (Mock).",
-                UploadedOps = pending.Count
+                UploadedOps = uploaded
             };
         }
         catch (Exception ex)
