@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+
+    <!-- Falls dein Rechner noch kein .NET 8 SDK hat, ändere hier auf net6.0-windows -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SasdLinks.Core\SasdLinks.Core.csproj" />
+  </ItemGroup>
+
+</Project>
