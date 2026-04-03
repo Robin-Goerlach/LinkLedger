@@ -39,3 +39,13 @@ Da wir ohne Rewrite arbeiten, benutzen wir Query-Parameter:
 - `index.php?action=export_csv`
 
 Die Buttons/Formulare setzen `action` automatisch.
+
+
+## Hinweis zu `display_name`
+Wenn in deiner bestehenden DB ein Feld `users.display_name` als NOT NULL definiert ist,
+fragt die Register-Maske jetzt einen **Anzeigenamen** ab und speichert ihn.
+
+
+## Mehrere Links anlegen (Neu-Modus)
+Der Button **Neu** setzt `new=1`, damit kein vorhandener Link automatisch ausgewählt wird.
+Dann speichert **Speichern** immer als neuer Datensatz (INSERT) statt Update.

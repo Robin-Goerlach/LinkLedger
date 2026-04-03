@@ -1,0 +1,9 @@
+-- Optionaler Fix, falls deine bestehende Tabelle `users` ein NOT NULL Feld `display_name` ohne Default hat.
+-- Die CGI-Version füllt `display_name` jetzt beim INSERT – normalerweise reicht das.
+-- Falls du trotzdem einen Default setzen willst:
+--
+-- 1) Default setzen (empfohlen, damit alte Inserts nie brechen)
+-- ALTER TABLE users MODIFY display_name VARCHAR(120) NOT NULL DEFAULT '';
+--
+-- 2) oder NULL erlauben:
+-- ALTER TABLE users MODIFY display_name VARCHAR(120) NULL;

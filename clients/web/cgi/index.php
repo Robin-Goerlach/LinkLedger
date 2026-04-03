@@ -200,6 +200,18 @@ function consume_flash(): array
     return is_array($msgs) ? $msgs : [];
 }
 
+function flash_data(string $key, mixed $value): void
+{
+    $_SESSION['_flash_data'][$key] = $value;
+}
+
+function consume_flash_data(string $key, mixed $default = null): mixed
+{
+    $val = $_SESSION['_flash_data'][$key] ?? $default;
+    unset($_SESSION['_flash_data'][$key]);
+    return $val;
+}
+
 function csrf_token(): string
 {
     $t = $_SESSION['_csrf'] ?? '';
@@ -260,6 +272,7 @@ try {
       CREATE TABLE IF NOT EXISTS users (
         id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
         email VARCHAR(255) NOT NULL,
+        display_name VARCHAR(120) NOT NULL DEFAULT '',
         password_hash VARCHAR(255) NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_users_email (email)
@@ -329,6 +342,30 @@ try {
     ");
 
     dbg('DB schema init done');
+
+/**
+ * Prüft, ob eine Spalte in einer Tabelle existiert (für "Schema-Mismatch" auf Shared Hosting).
+ * Hintergrund: CREATE TABLE IF NOT EXISTS ändert bestehende Tabellen NICHT.
+ *
+ * @param PDO $pdo
+ * @param string $table
+ * @param string $column
+ * @return bool
+ */
+function db_has_column(PDO $pdo, string $table, string $column): bool
+{
+    $sql = "
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = :t
+        AND COLUMN_NAME = :c
+      LIMIT 1
+    ";
+    $st = $pdo->prepare($sql);
+    $st->execute([':t' => $table, ':c' => $column]);
+    return (bool)$st->fetchColumn();
+}
 } catch (Throwable $e) {
     dbg('DB exception', ['type' => get_class($e), 'message' => $e->getMessage()]);
     http_response_code(500);
@@ -482,9 +519,27 @@ if ($action === 'register_post' && $method === 'POST') {
         exit;
     }
 
+    $displayName = trim((string)($_POST['display_name'] ?? ''));
+
+    // Fallback: aus E-Mail ableiten (Teil vor dem @), wenn leer
+    if ($displayName === '' && str_contains($email, '@')) {
+        $displayName = substr($email, 0, (int)strpos($email, '@'));
+    }
+    // Limit (DB-Spalte ist 120)
+    $displayName = mb_substr($displayName, 0, 120);
+
     $hash = password_hash($pass, PASSWORD_DEFAULT);
-    $stmt = $pdo->prepare("INSERT INTO users (email, password_hash) VALUES (:e, :h)");
-    $stmt->execute([':e' => $email, ':h' => $hash]);
+
+    // IMPORTANT:
+    // Deine Datenbank scheint bereits eine Spalte `display_name` zu haben, die NOT NULL ist.
+    // Falls die Spalte existiert, müssen wir sie beim INSERT befüllen.
+    if (function_exists('db_has_column') && db_has_column($pdo, 'users', 'display_name')) {
+        $stmt = $pdo->prepare("INSERT INTO users (email, display_name, password_hash) VALUES (:e, :dn, :h)");
+        $stmt->execute([':e' => $email, ':dn' => $displayName, ':h' => $hash]);
+    } else {
+        $stmt = $pdo->prepare("INSERT INTO users (email, password_hash) VALUES (:e, :h)");
+        $stmt->execute([':e' => $email, ':h' => $hash]);
+    }
 
     flash('success', 'Registriert! Bitte einloggen.');
     header('Location: ' . url(['action' => 'login']));
@@ -608,13 +663,15 @@ if (!in_array($action, ['login', 'register', 'login_post', 'register_post'], tru
     $uid = require_login();
 }
 
-function redirect_app(int $projectId = 0, int $linkId = 0, string $q = '', int $tagId = 0): void
+function redirect_app(int $projectId = 0, int $linkId = 0, string $q = '', int $tagId = 0, bool $new = false): void
 {
     $params = ['action' => 'app'];
     if ($projectId > 0) $params['project_id'] = $projectId;
     if ($linkId > 0) $params['link_id'] = $linkId;
     if ($q !== '') $params['q'] = $q;
     if ($tagId > 0) $params['tag_id'] = $tagId;
+    if ($new) $params['new'] = 1;
+
     header('Location: ' . url($params));
     exit;
 }
@@ -622,6 +679,13 @@ function redirect_app(int $projectId = 0, int $linkId = 0, string $q = '', int $
 if ($action === 'project_create' && $method === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
     $desc = trim((string)($_POST['description'] ?? ''));
+
+    // Form-Werte für Redirect merken (damit "Neu" nicht aus Versehen überschreibt)
+    flash_data('link_form', [
+        'url' => $urlInput,
+        'title' => $title,
+        'description' => $desc,
+    ]);
     if ($name === '') { flash('warn', 'Projektname fehlt.'); redirect_app(); }
 
     try {
@@ -656,7 +720,7 @@ if ($action === 'link_save' && $method === 'POST') {
     if ($projectId <= 0) { flash('error', 'Kein Projekt ausgewählt.'); redirect_app(); }
 
     $val = validate_url($urlInput);
-    if (!$val['ok']) { flash('warn', 'URL ungültig: ' . ($val['error'] ?? '')); redirect_app($projectId, $linkId); }
+    if (!$val['ok']) { flash('warn', 'URL ungültig: ' . ($val['error'] ?? '')); redirect_app($projectId, $linkId, '', 0, $linkId <= 0); }
 
     $urlOk = $val['url'];
     $canon = canonicalize_url($urlOk);
@@ -679,8 +743,9 @@ if ($action === 'link_save' && $method === 'POST') {
                 ':u' => $uid,
             ]);
             flash('success', 'Link gespeichert.');
+            flash_data('link_form', []);
             redirect_app($projectId, $linkId);
-        }
+}
 
         $stmt = $pdo->prepare("
           INSERT INTO links (user_id, project_id, url, canonical_url, canonical_hash, title, description)
@@ -696,12 +761,13 @@ if ($action === 'link_save' && $method === 'POST') {
             ':d' => ($desc !== '' ? $desc : null),
         ]);
         flash('success', 'Link gespeichert.');
+        flash_data('link_form', []);
         redirect_app($projectId, (int)$pdo->lastInsertId());
-    } catch (PDOException $e) {
+} catch (PDOException $e) {
         dbg('link_save exception', ['code' => $e->getCode(), 'msg' => $e->getMessage()]);
         if ($e->getCode() === '23000') flash('warn', 'Diese URL existiert im Projekt bereits.');
         else flash('error', 'DB Fehler beim Speichern des Links.');
-        redirect_app($projectId, $linkId);
+        redirect_app($projectId, $linkId, '', 0, $linkId <= 0);
     }
 }
 
@@ -719,7 +785,7 @@ if ($action === 'tag_create' && $method === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
     $projectId = (int)($_POST['project_id'] ?? 0);
     $linkId = (int)($_POST['link_id'] ?? 0);
-    if ($name === '') { flash('warn', 'Tag-Name fehlt.'); redirect_app($projectId, $linkId); }
+    if ($name === '') { flash('warn', 'Tag-Name fehlt.'); redirect_app($projectId, $linkId, '', 0, $linkId <= 0); }
 
     try {
         $stmt = $pdo->prepare("INSERT INTO tags (user_id, name) VALUES (:u, :n)");
@@ -730,47 +796,47 @@ if ($action === 'tag_create' && $method === 'POST') {
         if ($e->getCode() === '23000') flash('warn', 'Tag existiert bereits.');
         else flash('error', 'DB Fehler beim Anlegen des Tags.');
     }
-    redirect_app($projectId, $linkId);
+    redirect_app($projectId, $linkId, '', 0, $linkId <= 0);
 }
 
 if ($action === 'tag_delete' && $method === 'POST') {
     $tagId = (int)($_POST['tag_id'] ?? 0);
     $projectId = (int)($_POST['project_id'] ?? 0);
     $linkId = (int)($_POST['link_id'] ?? 0);
-    if ($tagId <= 0) { flash('warn', 'Kein Tag ausgewählt.'); redirect_app($projectId, $linkId); }
+    if ($tagId <= 0) { flash('warn', 'Kein Tag ausgewählt.'); redirect_app($projectId, $linkId, '', 0, $linkId <= 0); }
 
     $stmt = $pdo->prepare("DELETE FROM tags WHERE id = :t AND user_id = :u");
     $stmt->execute([':t' => $tagId, ':u' => $uid]);
     flash('success', 'Tag gelöscht.');
-    redirect_app($projectId, $linkId);
+    redirect_app($projectId, $linkId, '', 0, $linkId <= 0);
 }
 
 if ($action === 'link_tag_add' && $method === 'POST') {
     $projectId = (int)($_POST['project_id'] ?? 0);
     $linkId = (int)($_POST['link_id'] ?? 0);
     $tagId = (int)($_POST['tag_id'] ?? 0);
-    if ($linkId <= 0 || $tagId <= 0) { flash('warn', 'Bitte Link und Tag auswählen.'); redirect_app($projectId, $linkId); }
+    if ($linkId <= 0 || $tagId <= 0) { flash('warn', 'Bitte Link und Tag auswählen.'); redirect_app($projectId, $linkId, '', 0, $linkId <= 0); }
 
     $st = $pdo->prepare("SELECT id FROM tags WHERE id = :t AND user_id = :u LIMIT 1");
     $st->execute([':t' => $tagId, ':u' => $uid]);
-    if (!$st->fetch()) { flash('warn', 'Tag nicht gefunden.'); redirect_app($projectId, $linkId); }
+    if (!$st->fetch()) { flash('warn', 'Tag nicht gefunden.'); redirect_app($projectId, $linkId, '', 0, $linkId <= 0); }
 
     $stmt = $pdo->prepare("INSERT IGNORE INTO link_tags (link_id, tag_id) VALUES (:l, :t)");
     $stmt->execute([':l' => $linkId, ':t' => $tagId]);
     flash('success', 'Tag zugewiesen.');
-    redirect_app($projectId, $linkId);
+    redirect_app($projectId, $linkId, '', 0, $linkId <= 0);
 }
 
 if ($action === 'link_tag_remove' && $method === 'POST') {
     $projectId = (int)($_POST['project_id'] ?? 0);
     $linkId = (int)($_POST['link_id'] ?? 0);
     $tagId = (int)($_POST['tag_id'] ?? 0);
-    if ($linkId <= 0 || $tagId <= 0) { flash('warn', 'Ungültige Parameter.'); redirect_app($projectId, $linkId); }
+    if ($linkId <= 0 || $tagId <= 0) { flash('warn', 'Ungültige Parameter.'); redirect_app($projectId, $linkId, '', 0, $linkId <= 0); }
 
     $stmt = $pdo->prepare("DELETE FROM link_tags WHERE link_id = :l AND tag_id = :t");
     $stmt->execute([':l' => $linkId, ':t' => $tagId]);
     flash('success', 'Tag entfernt.');
-    redirect_app($projectId, $linkId);
+    redirect_app($projectId, $linkId, '', 0, $linkId <= 0);
 }
 
 // ------------------------------------------------------------
@@ -822,6 +888,7 @@ if ($action === 'login') {
     echo "<form class='mt-4 space-y-3' method='post' action='" . htmlspecialchars(url(['action' => 'login_post'])) . "'>";
     echo "<input type='hidden' name='_csrf' value='" . htmlspecialchars($csrf) . "'>";
     echo "<div><label class='block text-sm'>E-Mail</label><input class='w-full border rounded-xl p-2' name='email' type='email' required></div>";
+    echo "<div><label class='block text-sm'>Anzeigename</label><input class='w-full border rounded-xl p-2' name='display_name' type='text' placeholder='z.B. Robin' required></div>";
     echo "<div><label class='block text-sm'>Passwort</label><input class='w-full border rounded-xl p-2' name='password' type='password' required></div>";
     echo "<button class='bg-slate-900 text-white rounded-xl px-4 py-2'>Login</button>";
     echo "</form></div>";
@@ -854,6 +921,7 @@ if ($action === 'register') {
     echo "<form class='mt-4 space-y-3' method='post' action='" . htmlspecialchars(url(['action' => 'register_post'])) . "'>";
     echo "<input type='hidden' name='_csrf' value='" . htmlspecialchars($csrf) . "'>";
     echo "<div><label class='block text-sm'>E-Mail</label><input class='w-full border rounded-xl p-2' name='email' type='email' required></div>";
+    echo "<div><label class='block text-sm'>Anzeigename</label><input class='w-full border rounded-xl p-2' name='display_name' type='text' placeholder='z.B. Robin' required></div>";
     echo "<div><label class='block text-sm'>Passwort</label><input class='w-full border rounded-xl p-2' name='password' type='password' required></div>";
     echo "<button class='bg-slate-900 text-white rounded-xl px-4 py-2'>Konto anlegen</button>";
     echo "</form></div>";
@@ -862,6 +930,10 @@ if ($action === 'register') {
 }
 
 // ---------------- App screen ----------------
+$newMode = ((int)($_GET['new'] ?? 0) === 1);
+$oldForm = consume_flash_data('link_form', []);
+if (!is_array($oldForm)) $oldForm = [];
+
 $projectId = (int)($_GET['project_id'] ?? 0);
 $linkId = (int)($_GET['link_id'] ?? 0);
 $q = trim((string)($_GET['q'] ?? ''));
@@ -922,7 +994,7 @@ $selectedLink = null;
 if ($linkId > 0) {
     foreach ($links as $l) if ((int)$l['id'] === $linkId) { $selectedLink = $l; break; }
 }
-if (!$selectedLink && !empty($links)) { $selectedLink = $links[0]; $linkId = (int)$selectedLink['id']; }
+if (!$newMode && !$selectedLink && !empty($links)) { $selectedLink = $links[0]; $linkId = (int)$selectedLink['id']; }
 
 // tags for selected link
 $selectedLinkTags = [];
@@ -994,6 +1066,7 @@ echo "</nav></aside>";
 echo "<section class='col-span-12 md:col-span-5 bg-white rounded-2xl p-4 border'>";
 echo "<div class='mb-3'><form class='flex gap-2' method='get' action='" . htmlspecialchars(url()) . "'>";
 echo "<input type='hidden' name='action' value='app'>";
+echo "<input type='hidden' name='new' value='0'>";
 echo "<input type='hidden' name='project_id' value='" . (int)$projectId . "'>";
 echo "<input type='hidden' name='link_id' value='" . (int)$linkId . "'>";
 echo "<input type='text' name='q' value='" . htmlspecialchars($q) . "' placeholder='Suche...' class='flex-1 border rounded-xl p-2'>";
@@ -1005,7 +1078,7 @@ foreach ($tags as $t) {
 echo "</select><button class='border rounded-xl px-3'>Filter</button></form></div>";
 
 echo "<div class='mb-3 flex flex-wrap gap-2'>";
-echo "<a class='px-3 py-2 rounded-xl bg-slate-900 text-white text-sm' href='" . htmlspecialchars(url(['action' => 'app', 'project_id' => $projectId, 'link_id' => 0, 'q' => $q, 'tag_id' => $tagId])) . "'>Neu</a>";
+echo "<a class='px-3 py-2 rounded-xl bg-slate-900 text-white text-sm' href='" . htmlspecialchars(url(['action' => 'app', 'project_id' => $projectId, 'link_id' => 0, 'new' => 1, 'q' => $q, 'tag_id' => $tagId])) . "'>Neu</a>";
 echo "<a class='px-3 py-2 rounded-xl border text-sm' href='" . htmlspecialchars(url(['action' => 'export_csv', 'project_id' => $projectId])) . "'>Export CSV</a>";
 echo "<a class='px-3 py-2 rounded-xl border text-sm' href='" . htmlspecialchars(url(['action' => 'export_json', 'project_id' => $projectId])) . "'>Export JSON</a>";
 echo "</div>";
@@ -1026,13 +1099,13 @@ foreach ($links as $l) {
 echo "</div></section>";
 
 // right details
-$formUrl = $selectedLink ? (string)$selectedLink['url'] : '';
-$formTitle = $selectedLink ? (string)($selectedLink['title'] ?? '') : '';
-$formDesc = $selectedLink ? (string)($selectedLink['description'] ?? '') : '';
-$formLinkId = $selectedLink ? (int)$selectedLink['id'] : 0;
+$formUrl = $newMode ? (string)($oldForm['url'] ?? '') : ($selectedLink ? (string)$selectedLink['url'] : '');
+$formTitle = $newMode ? (string)($oldForm['title'] ?? '') : ($selectedLink ? (string)($selectedLink['title'] ?? '') : '');
+$formDesc = $newMode ? (string)($oldForm['description'] ?? '') : ($selectedLink ? (string)($selectedLink['description'] ?? '') : '');
+$formLinkId = $newMode ? 0 : ($selectedLink ? (int)$selectedLink['id'] : 0);
 
 echo "<section class='col-span-12 md:col-span-4 bg-white rounded-2xl p-4 border'>";
-echo "<div class='flex items-center justify-between mb-3'><h2 class='text-lg font-semibold'>Details</h2>";
+echo "<div class='flex items-center justify-between mb-3'><h2 class='text-lg font-semibold'>" . ($newMode ? 'Neuer Link' : 'Details') . "</h2>";
 if ($formUrl !== '') echo "<a class='text-sm text-slate-600 hover:underline' href='" . htmlspecialchars($formUrl) . "' target='_blank'>open ↗</a>";
 echo "</div>";
 
