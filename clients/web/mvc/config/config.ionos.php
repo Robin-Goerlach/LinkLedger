@@ -1,14 +1,14 @@
 <?php
 /**
- * LinkLedger – Konfiguration (Beispiel)
- * ====================================
- * Kopiere diese Datei nach config.php und trage DB-Zugangsdaten ein.
+ * Beispiel-Konfiguration.
+ *
+ * Kopiere diese Datei nach config.php und trage deine DB-Zugangsdaten ein.
  */
 return [
     'app' => [
         // base_path: falls die App in einem Unterverzeichnis läuft (z.B. '/apps/linkledger')
         // null => automatische Erkennung
-        'base_path' => null,
+        'base_path' => '/linkledger',
 
         // Debug-Schalter:
         // true  => detaillierte Error Page + PHP error_reporting
@@ -23,10 +23,10 @@ return [
     ],
 
     'db' => [
-        'host' => '127.0.0.1',
-        'name' => 'linkledger',
-        'user' => 'root',
-        'pass' => '',
+        'host' => 'db5018365891.hosting-data.io',
+        'name' => 'dbs14539044',
+        'user' => 'dbu3159497',
+        'pass' => 'pR8z#1Vn!qJ',
         'charset' => 'utf8mb4',
     ],
 ];

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use PDO;
+use App\Core\Debug;
 
 /**
  * Class UserModel
@@ -14,9 +15,13 @@ final class UserModel
 
     public function create(string $email, string $password): int
     {
+        // Passwort niemals loggen!
+        Debug::log('Create user', ['email' => $email]);
+
         $hash = password_hash($password, PASSWORD_DEFAULT);
         $stmt = $this->pdo->prepare("INSERT INTO users (email, password_hash) VALUES (:e, :h)");
         $stmt->execute([':e' => $email, ':h' => $hash]);
+
         return (int)$this->pdo->lastInsertId();
     }
 

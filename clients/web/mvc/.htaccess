@@ -1,13 +1,23 @@
-\
-# .htaccess im Code-Root
-# ----------------------
-# Alle Requests, die nicht auf eine echte Datei / ein echtes Verzeichnis zeigen,
-# werden auf index.php umgeschrieben.
-
+# LinkLedger – .htaccess (Projekt-Root)
+Options -Indexes
 RewriteEngine On
 
+# OPTIONAL (nur falls nötig, wenn du "komische" Pfade bekommst):
+# RewriteBase /linkledger/
+
+# WICHTIG:
+# /app ist bei uns eine Route, aber auch ein echtes Verzeichnis (Quellcode).
+# Darum zwingen wir diese Pfade immer durch den Front Controller.
+RewriteRule ^app(?:/.*)?$ index.php [L,QSA]
+RewriteRule ^login(?:/.*)?$ index.php [L,QSA]
+RewriteRule ^logout(?:/.*)?$ index.php [L,QSA]
+RewriteRule ^register(?:/.*)?$ index.php [L,QSA]
+RewriteRule ^export(?:/.*)?$ index.php [L,QSA]
+
+# Alles, was echte Dateien/Verzeichnisse sind, normal ausliefern
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
+# Rest an index.php
 RewriteRule ^ index.php [L,QSA]

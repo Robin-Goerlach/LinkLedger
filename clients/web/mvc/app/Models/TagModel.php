@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use PDO;
+use App\Core\Debug;
 
 /**
  * Class TagModel
@@ -21,11 +22,14 @@ final class TagModel
 
     public function create(int $userId, string $name): array
     {
+        Debug::log('Create tag', ['userId' => $userId, 'name' => $name]);
+
         try {
             $stmt = $this->pdo->prepare("INSERT INTO tags (user_id, name) VALUES (:u, :n)");
             $stmt->execute([':u' => $userId, ':n' => $name]);
             return ['created' => true, 'id' => (int)$this->pdo->lastInsertId()];
         } catch (\PDOException $e) {
+            Debug::exception($e, 'tag_create');
             if ($e->getCode() === '23000') {
                 return ['created' => false, 'duplicate' => true, 'message' => 'Tag existiert bereits.'];
             }
@@ -35,6 +39,7 @@ final class TagModel
 
     public function delete(int $userId, int $tagId): bool
     {
+        Debug::log('Delete tag', ['userId' => $userId, 'tagId' => $tagId]);
         $stmt = $this->pdo->prepare("DELETE FROM tags WHERE id = :t AND user_id = :u");
         return (bool)$stmt->execute([':t' => $tagId, ':u' => $userId]);
     }

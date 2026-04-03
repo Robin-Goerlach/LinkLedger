@@ -6,7 +6,10 @@ namespace App\Core;
 /**
  * Class Router
  *
- * Minimal Router mit BasePath-Stripping und {param} Unterstützung.
+ * Minimal Router mit:
+ * - BasePath stripping
+ * - {param} in Patterns
+ * - Debug::log(...) für Route-Matches
  */
 final class Router
 {
@@ -39,6 +42,8 @@ final class Router
             if ($path === '') $path = '/';
         }
 
+        Debug::log('Dispatch', ['method' => $method, 'uri' => $uriPath, 'path' => $path, 'basePath' => $this->basePath]);
+
         foreach ($this->routes as $r) {
             if ($method !== $r['method']) continue;
 
@@ -47,12 +52,14 @@ final class Router
 
             if (preg_match($regex, $path, $m)) {
                 $params = array_filter($m, fn($k) => !is_int($k), ARRAY_FILTER_USE_KEY);
+                Debug::log('Route matched', ['pattern' => $r['pattern'], 'params' => $params]);
                 $query = $_GET ?? [];
                 ($r['handler'])($params, $query);
                 return;
             }
         }
 
+        Debug::log('No route matched', ['path' => $path]);
         http_response_code(404);
         echo "404 Not Found";
     }

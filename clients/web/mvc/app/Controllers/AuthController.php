@@ -4,12 +4,11 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Session;
+use App\Core\Debug;
 use App\Models\UserModel;
 
 /**
  * Class AuthController
- *
- * Web Auth: Login / Register / Logout
  */
 final class AuthController extends BaseController
 {
@@ -23,6 +22,7 @@ final class AuthController extends BaseController
 
     public function showLogin(): void
     {
+        Debug::log('Show login');
         $this->view->render('auth/login');
     }
 
@@ -32,6 +32,8 @@ final class AuthController extends BaseController
 
         $email = trim((string)($_POST['email'] ?? ''));
         $pass  = (string)($_POST['password'] ?? '');
+
+        Debug::log('Login attempt', ['email' => $email]);
 
         $u = $this->users->findByEmail($email);
         if (!$u || !password_verify($pass, (string)$u['password_hash'])) {
@@ -46,6 +48,7 @@ final class AuthController extends BaseController
 
     public function showRegister(): void
     {
+        Debug::log('Show register');
         $this->view->render('auth/register');
     }
 
@@ -55,6 +58,8 @@ final class AuthController extends BaseController
 
         $email = trim((string)($_POST['email'] ?? ''));
         $pass  = (string)($_POST['password'] ?? '');
+
+        Debug::log('Register attempt', ['email' => $email]);
 
         if ($email === '' || $pass === '') {
             Session::flash('warn', 'Bitte E-Mail und Passwort ausfüllen.');

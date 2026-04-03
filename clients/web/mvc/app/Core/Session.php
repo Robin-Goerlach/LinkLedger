@@ -6,7 +6,10 @@ namespace App\Core;
 /**
  * Class Session
  *
- * Session + Flash + CSRF
+ * - Session starten
+ * - Flash Messages
+ * - Flash Data (Form-Werte nach Redirect)
+ * - CSRF Token
  */
 final class Session
 {
@@ -61,7 +64,7 @@ final class Session
 
     public static function csrfToken(): string
     {
-        $t = $_SESSION['_csrf'] ?? null;
+        $t = $_SESSION['_csrf'] ?? '';
         if (!is_string($t) || $t === '') {
             $t = bin2hex(random_bytes(16));
             $_SESSION['_csrf'] = $t;

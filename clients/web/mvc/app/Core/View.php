@@ -7,7 +7,8 @@ namespace App\Core;
  * Class View
  *
  * Mini-View Engine:
- * - layout.php enthält Grundlayout und inkludiert Content-Template.
+ * - layout.php als Basis
+ * - contentTemplate als View
  */
 final class View
 {
@@ -20,6 +21,7 @@ final class View
         $vars['_app'] = $this->app;
         $vars['_flash'] = Session::consumeFlash();
         $vars['_csrf'] = Session::csrfToken();
+        $vars['_debug_console_script'] = Debug::consoleScript();
 
         extract($vars, EXTR_SKIP);
 

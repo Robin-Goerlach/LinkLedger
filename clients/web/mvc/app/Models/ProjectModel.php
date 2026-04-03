@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use PDO;
+use App\Core\Debug;
 
 /**
  * Class ProjectModel
@@ -29,16 +30,20 @@ final class ProjectModel
 
     public function create(int $userId, string $name, ?string $description): int
     {
+        Debug::log('Create project', ['userId' => $userId, 'name' => $name]);
+
         $stmt = $this->pdo->prepare("
             INSERT INTO projects (user_id, name, description)
             VALUES (:u, :n, :d)
         ");
         $stmt->execute([':u' => $userId, ':n' => $name, ':d' => $description]);
+
         return (int)$this->pdo->lastInsertId();
     }
 
     public function delete(int $userId, int $projectId): bool
     {
+        Debug::log('Delete project', ['userId' => $userId, 'projectId' => $projectId]);
         $stmt = $this->pdo->prepare("DELETE FROM projects WHERE id = :p AND user_id = :u");
         return (bool)$stmt->execute([':p' => $projectId, ':u' => $userId]);
     }

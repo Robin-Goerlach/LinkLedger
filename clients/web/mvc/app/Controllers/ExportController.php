@@ -6,6 +6,7 @@ namespace App\Controllers;
 use App\Core\App;
 use App\Core\Auth;
 use App\Core\Session;
+use App\Core\Debug;
 use App\Models\ProjectModel;
 use App\Models\TagModel;
 use App\Models\LinkModel;
@@ -15,7 +16,7 @@ use App\Models\LinkModel;
  *
  * Export wie im Windows Client:
  * - JSON Snapshot
- * - CSV (Excel, UTF-8 BOM)
+ * - CSV (Excel)
  */
 final class ExportController extends BaseController
 {
@@ -35,20 +36,17 @@ final class ExportController extends BaseController
         $uid = Auth::requireLogin($this->app);
 
         $projectId = (int)($query['project_id'] ?? 0);
-
-        $projects = $this->projects->list($uid);
-        $tags = $this->tags->list($uid);
-        $links = $this->links->exportLinksWithTags($uid, $projectId > 0 ? $projectId : null);
+        Debug::log('Export JSON', ['projectId' => $projectId]);
 
         $snapshot = [
             'schema_version' => 1,
             'generated_at' => gmdate('c'),
-            'projects' => $projects,
-            'tags' => $tags,
-            'links' => $links,
+            'projects' => $this->projects->list($uid),
+            'tags' => $this->tags->list($uid),
+            'links' => $this->links->exportLinksWithTags($uid, $projectId > 0 ? $projectId : null),
         ];
 
-        $file = 'sasdlinks_export_' . gmdate('Y-m-d') . '.json';
+        $file = 'linkledger_export_' . gmdate('Y-m-d') . '.json';
 
         header('Content-Type: application/json; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $file . '"');
@@ -62,6 +60,7 @@ final class ExportController extends BaseController
         $uid = Auth::requireLogin($this->app);
 
         $projectId = (int)($query['project_id'] ?? 0);
+        Debug::log('Export CSV', ['projectId' => $projectId]);
 
         $projects = $this->projects->list($uid);
         $links = $this->links->exportLinksWithTags($uid, $projectId > 0 ? $projectId : null);
@@ -77,9 +76,7 @@ final class ExportController extends BaseController
         foreach ($links as $l) {
             $pname = $projectNameById[(int)$l['project_id']] ?? '';
             $tagNames = [];
-            foreach (($l['tags'] ?? []) as $t) {
-                $tagNames[] = (string)($t['name'] ?? '');
-            }
+            foreach (($l['tags'] ?? []) as $t) $tagNames[] = (string)($t['name'] ?? '');
             $tagsJoined = implode(',', array_filter($tagNames));
 
             $rows[] = implode(';', [
@@ -98,16 +95,14 @@ final class ExportController extends BaseController
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $file . '"');
 
-        echo \"\\xEF\\xBB\\xBF\"; // UTF-8 BOM für Excel
-        echo implode(\"\\r\\n\", $rows);
+        echo "\xEF\xBB\xBF"; // UTF-8 BOM für Excel
+        echo implode("\r\n", $rows);
         exit;
     }
 
     private function csv(string $value): string
     {
-        if (strpbrk($value, \";\\n\\r\\\"\") === false) {
-            return $value;
-        }
-        return '\"' . str_replace('\"', '\"\"', $value) . '\"';
+        if (strpbrk($value, ";\n\r\"") === false) return $value;
+        return '"' . str_replace('"', '""', $value) . '"';
     }
 }

@@ -6,7 +6,7 @@ namespace App\Core;
 /**
  * Class Auth
  *
- * Session-basierte Web-Auth.
+ * Minimal: user_id in der Session.
  */
 final class Auth
 {

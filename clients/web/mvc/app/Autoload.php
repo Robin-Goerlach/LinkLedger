@@ -5,7 +5,10 @@ declare(strict_types=1);
  * Minimaler PSR-4 Autoloader (ohne Composer)
  * -----------------------------------------
  * Namespace:
- * - App\...   -> app/...
+ * - App\... => app/...
+ *
+ * Für produktive Projekte wäre Composer Standard – hier ist es bewusst minimal,
+ * damit der Code gut nachvollziehbar bleibt.
  */
 spl_autoload_register(function (string $class): void {
     $prefix = 'App\\';

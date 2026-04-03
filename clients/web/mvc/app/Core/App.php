@@ -6,9 +6,9 @@ namespace App\Core;
 /**
  * Class App
  *
- * Hilfsfunktionen:
- * - basePath Handling (Subdirectory Hosting)
- * - requestId (Debug)
+ * Stellt zentrale Hilfen bereit:
+ * - basePath (Subdirectory Hosting)
+ * - requestId (Debug-Korrelation)
  * - url() Helper
  */
 final class App
@@ -18,8 +18,7 @@ final class App
 
     public function __construct(?string $configuredBasePath = null)
     {
-        $this->basePath = $configuredBasePath ?? $this->guessBasePath();
-        $this->basePath = rtrim($this->basePath, '/');
+        $this->basePath = rtrim($configuredBasePath ?? $this->guessBasePath(), '/');
         $this->requestId = bin2hex(random_bytes(8));
     }
 
@@ -33,11 +32,6 @@ final class App
         return $this->requestId;
     }
 
-    /**
-     * Baut eine URL inkl. BasePath.
-     *
-     * @param string $path z.B. '/app' oder 'login'
-     */
     public function url(string $path): string
     {
         if ($path === '') $path = '/';

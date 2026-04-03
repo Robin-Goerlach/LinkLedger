@@ -1,13 +1,7 @@
 <?php
 /**
  * Hauptansicht (Wunderlist-Style)
- *
- * 3 Spalten:
- * - Links: Projekte
- * - Mitte: Links/URLs + Suche/Filter
- * - Rechts: Details + Tags
  */
-
 function qs(array $base, array $extra = []): string {
     $m = array_merge($base, $extra);
     foreach ($m as $k => $v) {
@@ -28,7 +22,6 @@ $formLinkId = (int)($old['link_id'] ?? ($selectedLink['id'] ?? 0));
 ?>
 <div class="max-w-7xl mx-auto">
   <div class="grid grid-cols-12 gap-4" style="min-height: 70vh;">
-    <!-- Left: Projects -->
     <aside class="col-span-12 md:col-span-3 bg-slate-800 text-white rounded-2xl p-4">
       <h2 class="text-lg font-semibold mb-3">Projekte</h2>
 
@@ -56,7 +49,6 @@ $formLinkId = (int)($old['link_id'] ?? ($selectedLink['id'] ?? 0));
       </nav>
     </aside>
 
-    <!-- Middle: Links list + search/filter -->
     <section class="col-span-12 md:col-span-5 bg-white rounded-2xl p-4 border">
       <div class="mb-3">
         <form class="flex gap-2" method="get" action="<?= htmlspecialchars($_app->url('/app')) ?>">
@@ -105,7 +97,6 @@ $formLinkId = (int)($old['link_id'] ?? ($selectedLink['id'] ?? 0));
       </div>
     </section>
 
-    <!-- Right: Details -->
     <section class="col-span-12 md:col-span-4 bg-white rounded-2xl p-4 border">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-lg font-semibold">Details</h2>
@@ -148,7 +139,6 @@ $formLinkId = (int)($old['link_id'] ?? ($selectedLink['id'] ?? 0));
       <?php endif; ?>
 
       <hr class="my-4">
-
       <h3 class="font-semibold mb-2">Tags</h3>
 
       <?php if (!$selectedLink): ?>
@@ -183,14 +173,12 @@ $formLinkId = (int)($old['link_id'] ?? ($selectedLink['id'] ?? 0));
       <?php endif; ?>
 
       <hr class="my-4">
-
-      <h3 class="font-semibold mb-2">Tag-Verwaltung (kompakt)</h3>
+      <h3 class="font-semibold mb-2">Tag-Verwaltung</h3>
 
       <form method="post" action="<?= htmlspecialchars($_app->url('/tags/create')) ?>" class="flex gap-2 mb-2">
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($_csrf) ?>">
         <input type="hidden" name="project_id" value="<?= (int)$projectId ?>">
         <input type="hidden" name="link_id" value="<?= (int)$linkId ?>">
-
         <input name="name" class="flex-1 border rounded-xl p-2" placeholder="Neuer Tag...">
         <button class="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm">+</button>
       </form>
@@ -199,7 +187,6 @@ $formLinkId = (int)($old['link_id'] ?? ($selectedLink['id'] ?? 0));
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($_csrf) ?>">
         <input type="hidden" name="project_id" value="<?= (int)$projectId ?>">
         <input type="hidden" name="link_id" value="<?= (int)$linkId ?>">
-
         <select name="tag_id" class="flex-1 border rounded-xl p-2">
           <option value="0">Tag löschen...</option>
           <?php foreach ($tags as $t): ?>

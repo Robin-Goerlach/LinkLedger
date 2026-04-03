@@ -5,9 +5,16 @@ namespace App\Models;
 
 use PDO;
 use App\Core\Validator;
+use App\Core\Debug;
 
 /**
  * Class LinkModel
+ *
+ * Verantwortlich für:
+ * - Links anlegen/ändern/löschen
+ * - Filter (Suche + Tag)
+ * - Tag-Zuweisung (Many-to-many via link_tags)
+ * - Export (links + tags)
  */
 final class LinkModel
 {
@@ -17,6 +24,8 @@ final class LinkModel
     {
         $q = trim((string)($filter['q'] ?? ''));
         $tagId = (int)($filter['tag_id'] ?? 0);
+
+        Debug::log('List links', ['userId' => $userId, 'projectId' => $projectId, 'q' => $q, 'tagId' => $tagId]);
 
         $where = ["l.user_id = :u", "l.project_id = :p"];
         $params = [':u' => $userId, ':p' => $projectId];
@@ -56,6 +65,8 @@ final class LinkModel
 
     public function create(int $userId, int $projectId, string $urlInput, ?string $title, ?string $description): array
     {
+        Debug::log('Create link', ['userId' => $userId, 'projectId' => $projectId]);
+
         $val = Validator::validateUrl($urlInput);
         if (!$val['ok']) {
             return ['created' => false, 'validation_error' => true, 'message' => $val['error']];
@@ -81,6 +92,7 @@ final class LinkModel
             ]);
             return ['created' => true, 'id' => (int)$this->pdo->lastInsertId()];
         } catch (\PDOException $e) {
+            Debug::exception($e, 'link_create');
             if ($e->getCode() === '23000') {
                 return ['created' => false, 'duplicate' => true, 'message' => 'Diese URL existiert im Projekt bereits.'];
             }
@@ -90,6 +102,8 @@ final class LinkModel
 
     public function update(int $userId, int $linkId, string $urlInput, ?string $title, ?string $description): array
     {
+        Debug::log('Update link', ['userId' => $userId, 'linkId' => $linkId]);
+
         if (!$this->get($userId, $linkId)) {
             return ['ok' => false, 'not_found' => true];
         }
@@ -121,6 +135,7 @@ final class LinkModel
             ]);
             return ['ok' => true];
         } catch (\PDOException $e) {
+            Debug::exception($e, 'link_update');
             if ($e->getCode() === '23000') {
                 return ['ok' => false, 'duplicate' => true, 'message' => 'Änderung würde ein Duplikat erzeugen.'];
             }
@@ -130,6 +145,7 @@ final class LinkModel
 
     public function delete(int $userId, int $linkId): bool
     {
+        Debug::log('Delete link', ['userId' => $userId, 'linkId' => $linkId]);
         $stmt = $this->pdo->prepare("DELETE FROM links WHERE id = :id AND user_id = :u");
         return (bool)$stmt->execute([':id' => $linkId, ':u' => $userId]);
     }
@@ -150,6 +166,8 @@ final class LinkModel
 
     public function assignTag(int $userId, int $linkId, int $tagId): array
     {
+        Debug::log('Assign tag', ['linkId' => $linkId, 'tagId' => $tagId]);
+
         if (!$this->get($userId, $linkId)) return ['ok' => false, 'error' => 'link_not_found'];
 
         $stmt = $this->pdo->prepare("SELECT id FROM tags WHERE id = :t AND user_id = :u LIMIT 1");
@@ -164,6 +182,8 @@ final class LinkModel
 
     public function unassignTag(int $userId, int $linkId, int $tagId): array
     {
+        Debug::log('Unassign tag', ['linkId' => $linkId, 'tagId' => $tagId]);
+
         if (!$this->get($userId, $linkId)) return ['ok' => false, 'error' => 'link_not_found'];
 
         $stmt = $this->pdo->prepare("DELETE FROM link_tags WHERE link_id = :l AND tag_id = :t");

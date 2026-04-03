@@ -7,6 +7,7 @@ use App\Core\App;
 use App\Core\Auth;
 use App\Core\Session;
 use App\Core\View;
+use App\Core\Debug;
 use App\Models\ProjectModel;
 use App\Models\LinkModel;
 use App\Models\TagModel;
@@ -43,11 +44,14 @@ final class AppController extends BaseController
         $projectId = (int)($query['project_id'] ?? 0);
         $linkId = (int)($query['link_id'] ?? 0);
 
+        Debug::log('Show app', ['uid' => $uid, 'projectId' => $projectId, 'linkId' => $linkId, 'q' => $q, 'tagId' => $tagId]);
+
         $projects = $this->projects->list($uid);
 
-        // Seed "Inbox", wenn leer (wie im Windows Client)
+        // Seed "Inbox" (Auto) falls leer
         if (empty($projects)) {
-            try { $this->projects->create($uid, 'Inbox', 'Standard-Projekt (Auto)'); } catch (\Throwable $e) {}
+            try { $this->projects->create($uid, 'Inbox', 'Standard-Projekt (Auto)'); }
+            catch (\Throwable $e) { Debug::exception($e, 'seed_inbox'); }
             $projects = $this->projects->list($uid);
         }
 
@@ -109,6 +113,7 @@ final class AppController extends BaseController
             Session::flash('success', 'Projekt angelegt.');
             $this->redirect('/app', ['project_id' => $id]);
         } catch (\PDOException $e) {
+            Debug::exception($e, 'project_create');
             if ($e->getCode() === '23000') Session::flash('warn', 'Projektname existiert bereits.');
             else Session::flash('error', 'DB Fehler beim Anlegen des Projekts.');
             $this->redirect('/app');
@@ -143,7 +148,6 @@ final class AppController extends BaseController
         $title = trim((string)($_POST['title'] ?? ''));
         $desc = trim((string)($_POST['description'] ?? ''));
 
-        // Formdaten merken (falls Validierung scheitert)
         Session::flashData('link_form', ['url' => $url, 'title' => $title, 'description' => $desc, 'link_id' => $linkId]);
 
         if ($projectId <= 0) {

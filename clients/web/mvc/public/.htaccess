@@ -1,10 +1,4 @@
-\
-# .htaccess im /public Ordner
-# ---------------------------
-# Standard-Setup, wenn DocumentRoot auf /public zeigt.
-# Optional bei Subfolder-Hosting:
-#   RewriteBase /dein/pfad/public/
-
+# LinkLedger – .htaccess (/public)
 RewriteEngine On
 
 RewriteCond %{REQUEST_FILENAME} -f [OR]

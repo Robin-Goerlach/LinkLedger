@@ -1,4 +1,4 @@
-# SASD Links – PHP MVC (Wunderlist-Style)
+# SASD Links – PHP MVC 
 
 PHP MVC Nachbau des Windows-Clients:
 
@@ -21,12 +21,12 @@ PHP MVC Nachbau des Windows-Clients:
 ## Hinweis
 Tabellen werden beim Start automatisch angelegt (Auto-Schema).
 
-# LinkLedger – Datenbankschema (IONOS / MySQL)
+# LinkLedger – Datenbankschema (Webhoster / MySQL)
 Dieses Verzeichnis enthält das SQL-Schema für LinkLedger/SASD Links.
 
 ## Inhalt
 
-- `linkledger_schema_ionos.sql`
+- `linkledger_schema.sql`
   - erstellt Tabellen für: `users`, `projects`, `tags`, `links`, `link_tags`
   - verwendet `InnoDB` (Foreign Keys + ON DELETE CASCADE)
   - verwendet `utf8mb4` (Umlaute/Emoji)
@@ -34,9 +34,9 @@ Dieses Verzeichnis enthält das SQL-Schema für LinkLedger/SASD Links.
     - `canonical_url` → SHA-256 → `canonical_hash CHAR(64)`
     - Unique Index: `uq_links_dup (user_id, project_id, canonical_hash)`
 
-## Ausführen in IONOS (phpMyAdmin)
+## Ausführen beim WebHoster (phpMyAdmin)
 
-1. **In IONOS einloggen**
+1. **Beim Webhoster einloggen**
    - Webhosting → Datenbanken → phpMyAdmin öffnen
 
 2. **Datenbank auswählen**
@@ -44,12 +44,12 @@ Dieses Verzeichnis enthält das SQL-Schema für LinkLedger/SASD Links.
 
 3. **SQL importieren**
    - Tab **„SQL“** öffnen
-   - Inhalt aus `linkledger_schema_ionos.sql` einfügen
+   - Inhalt aus `linkledger_schema.sql` einfügen
    - **„OK / Ausführen“** klicken
 
 Alternative (Import-Tab):
 - Tab **„Importieren“**
-- Datei `linkledger_schema_ionos.sql` auswählen
+- Datei `linkledger_schema.sql` auswählen
 - Zeichenkodierung: `utf-8`
 - Ausführen
 
@@ -90,3 +90,31 @@ Nach dem Import sollten diese Tabellen existieren:
 
 In phpMyAdmin kannst du rechts in der Tabellenliste kontrollieren, ob alle vorhanden sind.
 
+
+## Debug-Schalter
+
+In `config/config.php`:
+
+- `app.debug`
+  - `true` => detaillierte Error Page + error_reporting(E_ALL)
+  - `false` => generische Error Page
+
+- `app.debug_console`
+  - `true` => Debug-Meldungen als `console.log(...)` (DevTools → Console)
+
+- `app.log_file`
+  - Serverseitiges Debug-Log (z.B. `storage/logs/app.log`)
+
+## Wie debugge ich HTTP 500 am schnellsten?
+
+1) `app.debug = true`
+2) Seite neu laden
+3) Wenn HTML gerendert wird: DevTools → Console öffnen (debug_console=true)
+4) Zusätzlich: `storage/logs/app.log` prüfen (wenn Schreibrechte vorhanden)
+
+## Typische Ursachen für HTTP 500 beim Webhoster
+
+- `.htaccess` Syntaxfehler
+- PHP-Version nicht passend (benötigt PHP >= 8.0)
+- DB-Zugangsdaten falsch / DB existiert nicht
+- fehlende PHP Erweiterung `pdo_mysql`

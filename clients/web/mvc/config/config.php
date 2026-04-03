@@ -1,8 +1,5 @@
-\
 <?php
 /**
- * Konfiguration (lokal)
- * ---------------------
- * Passe DB-Daten an dein Umfeld an.
+ * LinkLedger – Konfiguration (lokal)
  */
-return require __DIR__ . '/config.example.php';
+return require __DIR__ . '/config.ionos.php';
