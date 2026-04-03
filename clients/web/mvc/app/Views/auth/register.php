@@ -1,4 +1,3 @@
-\
 <div class="max-w-md mx-auto bg-white rounded-2xl shadow-sm p-6">
   <h1 class="text-xl font-semibold">Register</h1>
   <form class="mt-4 space-y-3" method="post" action="<?= htmlspecialchars($_app->url('/register')) ?>">

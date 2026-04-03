@@ -1,4 +1,3 @@
-\
 <?php
 use App\Core\Session;
 use App\Core\Auth;

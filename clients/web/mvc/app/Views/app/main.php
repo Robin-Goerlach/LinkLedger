@@ -1,4 +1,3 @@
-\
 <?php
 /**
  * Hauptansicht (Wunderlist-Style)
